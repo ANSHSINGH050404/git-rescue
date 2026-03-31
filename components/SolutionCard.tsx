@@ -4,11 +4,11 @@ import { SeverityBadge } from "./SeverityBadge";
 import { CodeBlock } from "./CodeBlock";
 import { InteractiveTerminal } from "./InteractiveTerminal";
 import { VisualGitGraph } from "./VisualGitGraph";
-import { Info, AlertTriangle, MessageSquare, Share2, TerminalSquare, GitBranch } from "lucide-react";
+import { Info, AlertTriangle, MessageSquare, Share2, TerminalSquare, GitBranch, Undo2, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 
 export function SolutionCard({ solution }: { solution: AIResponse }) {
-  const [activeTab, setActiveTab] = useState<"steps" | "sandbox" | "visual">("steps");
+  const [activeTab, setActiveTab] = useState<"steps" | "sandbox" | "visual" | "undo">("steps");
 
   const share = () => {
     const encoded = btoa(encodeURIComponent(JSON.stringify(solution)));
@@ -69,6 +69,13 @@ export function SolutionCard({ solution }: { solution: AIResponse }) {
             <GitBranch size={14} />
             Visualizer
           </button>
+          <button 
+            onClick={() => setActiveTab("undo")}
+            className={`px-4 py-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${activeTab === "undo" ? "border-black dark:border-white text-black dark:text-white" : "border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"}`}
+          >
+            <Undo2 size={14} />
+            Safety Net
+          </button>
         </div>
 
         {/* Content Area */}
@@ -97,6 +104,31 @@ export function SolutionCard({ solution }: { solution: AIResponse }) {
           {activeTab === "visual" && (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
               <VisualGitGraph severity={solution.severity} />
+            </div>
+          )}
+
+          {activeTab === "undo" && (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
+              <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/50 rounded-xl text-blue-800 dark:text-blue-300">
+                <ShieldAlert size={20} className="flex-shrink-0" />
+                <p className="text-sm font-medium">
+                  Run these commands ONLY if the proposed solution doesn't work as expected. These will attempt to revert your repo to its state before you started this rescue.
+                </p>
+              </div>
+              <div className="space-y-4">
+                {solution.undoSteps && solution.undoSteps.length > 0 ? (
+                  solution.undoSteps.map((step, idx) => (
+                    <div key={idx} className="relative">
+                      <div className="absolute -left-[41px] top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center border-4 border-white dark:border-black shadow-sm">
+                        {idx + 1}
+                      </div>
+                      <CodeBlock code={step.code} comment={step.comment} />
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-gray-500 py-8 italic">No specific undo steps provided for this solution.</p>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -1,11 +1,13 @@
 'use client'
 import { useState, useRef, useEffect } from "react";
-import { Search, X, Bot, Loader2, Sparkles, Shield, ShieldOff, History, Trash2 } from "lucide-react";
+import { Search, X, Bot, Loader2, Sparkles, Shield, ShieldOff, History, Trash2, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { aiResponse, type AIResponse } from "../app/actions/ai";
 import { SolutionCard } from "./SolutionCard";
 
 export function SearchBar() {
   const [query, setQuery] = useState("");
+  const [context, setContext] = useState("");
+  const [showContext, setShowContext] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
   const [response, setResponse] = useState<AIResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +69,7 @@ export function SearchBar() {
       setResponse(null);
       setShowHistory(false);
       
-      const res = await aiResponse(finalQuery);
+      const res = await aiResponse(finalQuery, context);
       if (res) {
         if (safeMode && res.severity === "nuclear") {
           setError("SAFE MODE: A 'Nuclear' solution was blocked. Disable Safe Mode to see destructive fixes.");
@@ -95,6 +97,7 @@ export function SearchBar() {
 
   const clearSearch = () => {
     setQuery("");
+    setContext("");
     setResponse(null);
     setError(null);
     window.history.replaceState(null, "", "/");
@@ -219,6 +222,42 @@ export function SearchBar() {
           )}
         </form>
 
+        {/* Status Indicators */}
+        <div className="mt-4 h-6 text-center">
+          {loadingAi && (
+            <p className="text-sm font-medium text-gray-400 dark:text-gray-600 animate-pulse flex items-center justify-center gap-2">
+              <Bot size={14} className="animate-bounce" />
+              Thinking... Git is complicated, but I'm on it.
+            </p>
+          )}
+          {error && <p className="text-sm font-medium text-red-500 dark:text-red-400">{error}</p>}
+        </div>
+
+        {/* Git Context Toggle */}
+        <div className="max-w-2xl mx-auto flex justify-center pb-2">
+          <button
+            type="button"
+            onClick={() => setShowContext(!showContext)}
+            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+          >
+            <FileText size={12} />
+            {showContext ? "Hide Context" : "Add Context (Status/Log)"}
+            {showContext ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+        </div>
+
+        {showContext && (
+          <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-top-2 duration-300">
+            <textarea
+              placeholder="Paste git status, log, or terminal error for precise commands..."
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              rows={3}
+              className="w-full p-4 bg-white dark:bg-black border-2 border-gray-100 dark:border-gray-900 rounded-xl text-sm font-mono focus:border-black dark:focus:border-white outline-none transition-all resize-none shadow-inner"
+            />
+          </div>
+        )}
+
         {/* Quick Fixes */}
         {!response && !loadingAi && (
           <div className="flex flex-wrap justify-center gap-3 animate-in fade-in slide-in-from-top-4 duration-500 delay-200">
@@ -237,17 +276,6 @@ export function SearchBar() {
             ))}
           </div>
         )}
-
-        {/* Status Indicators */}
-        <div className="mt-4 h-6 text-center">
-          {loadingAi && (
-            <p className="text-sm font-medium text-gray-400 dark:text-gray-600 animate-pulse flex items-center justify-center gap-2">
-              <Bot size={14} className="animate-bounce" />
-              Thinking... Git is complicated, but I'm on it.
-            </p>
-          )}
-          {error && <p className="text-sm font-medium text-red-500 dark:text-red-400">{error}</p>}
-        </div>
       </div>
 
       {/* Results Section */}

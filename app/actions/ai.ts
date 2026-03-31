@@ -18,20 +18,25 @@ const AIResponseSchema = z.object({
     code: z.string(),
     comment: z.string().optional()
   })),
+  undoSteps: z.array(z.object({
+    code: z.string(),
+    comment: z.string().optional()
+  })).optional(),
   note: z.string().optional(),
 });
 
 export type AIResponse = z.infer<typeof AIResponseSchema>;
 
-export async function aiResponse(query: string): Promise<AIResponse | null> {
+export async function aiResponse(query: string, context?: string): Promise<AIResponse | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("Missing GEMINI_API_KEY");
   }
 
-  // Create a cache key from the sanitized query
+  // Create a cache key from the sanitized query and context
   const sanitizedQuery = query.trim().toLowerCase();
-  const cacheKey = `git-rescue:v1:${crypto.createHash("md5").update(sanitizedQuery).digest("hex")}`;
+  const sanitizedContext = context?.trim().toLowerCase() || "";
+  const cacheKey = `git-rescue:v2:${crypto.createHash("md5").update(sanitizedQuery + sanitizedContext).digest("hex")}`;
 
   try {
     // 1. Try to get from Upstash Redis cache
@@ -51,6 +56,10 @@ You are an expert Git Rescue Agent. A user is facing a Git problem and needs a c
 User problem:
 "${query}"
 
+${context ? `User provided Git Context (e.g., git status/log/error output):
+"${context}"
+` : ""}
+
 Respond ONLY in a JSON object with the following schema:
 {
   "id": "unique-id",
@@ -64,6 +73,9 @@ Respond ONLY in a JSON object with the following schema:
   "steps": [
     { "code": "git command", "comment": "what this does" }
   ],
+  "undoSteps": [
+    { "code": "git command", "comment": "how to revert the above steps" }
+  ],
   "note": "Any additional context"
 }
 
@@ -75,8 +87,10 @@ Rules:
    - high: Potential data loss or tricky merge conflicts.
    - nuclear: Irreversible or dangerous commands (e.g., reset --hard, filter-branch).
 3. If the solution is destructive, you MUST include a "warning" and set severity to "nuclear".
-4. Limit to maximum 4 steps.
+4. Limit to maximum 4 steps for the solution and 2-3 steps for the undo steps.
 5. Provide a valid JSON object without any markdown formatting blocks.
+6. IMPORTANT: If context is provided, use real branch names, commit hashes, or file paths from the context in the commands. If no context, use generic placeholders like <branch-name>.
+7. ALWAYS provide "undoSteps" that would safely revert the proposed "steps" to the original state.
 `;
 
     const response = await genAI.models.generateContent({
