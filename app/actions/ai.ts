@@ -2,6 +2,8 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
+import { redis } from "@/lib/redis";
+import crypto from "crypto";
 
 const AIResponseSchema = z.object({
   id: z.string(),
@@ -27,9 +29,20 @@ export async function aiResponse(query: string): Promise<AIResponse | null> {
     throw new Error("Missing GEMINI_API_KEY");
   }
 
-  const genAI = new GoogleGenAI({ apiKey });
+  // Create a cache key from the sanitized query
+  const sanitizedQuery = query.trim().toLowerCase();
+  const cacheKey = `git-rescue:v1:${crypto.createHash("md5").update(sanitizedQuery).digest("hex")}`;
 
   try {
+    // 1. Try to get from Upstash Redis cache
+    const cached = await redis.get<AIResponse>(cacheKey);
+    if (cached) {
+      console.log("Cache Hit:", sanitizedQuery);
+      return cached;
+    }
+
+    console.log("Cache Miss, calling AI:", sanitizedQuery);
+    const genAI = new GoogleGenAI({ apiKey });
     const modelName = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 
     const prompt = `
@@ -83,13 +96,17 @@ Rules:
     try {
       const parsed = JSON.parse(cleaned);
       const validated = AIResponseSchema.parse(parsed);
+
+      // Save to cache for 24 hours
+      await redis.set(cacheKey, validated, { ex: 60 * 60 * 24 });
+      
       return validated;
     } catch (err) {
       console.error("Validation or Parse Error:", err, cleaned);
       return null;
     }
   } catch (error) {
-    console.error("AI Error:", error);
+    console.error("AI Error or Cache Error:", error);
     return null;
   }
 }
